@@ -1,0 +1,100 @@
+#### Working with Data
+
+# XState Counter
+
+```jsx
+import React from "react"
+import { Machine, assign } from "xstate"
+import { useMachine } from "@xstate/react"
+
+const min = 0,
+  max = 10
+
+const machine = Machine(
+  {
+    id: "toggle",
+    initial: "mandatory",
+    states: {
+      mandatory: {}
+    },
+    on: {
+      ADD: {
+        actions: "increment",
+        cond: "belowMax"
+      },
+      REMOVE: {
+        actions: "decrement",
+        cond: "aboveMin"
+      },
+      ADJUST: {
+        actions: "adjustCount",
+        cond: "resultIsInRange"
+      },
+      SET: {
+        actions: "setCount",
+        cond: "valueIsInRange"
+      },
+      CLEAR: {
+        actions: "setCountToMin",
+        cond: "aboveMin"
+      }
+    },
+    context: {
+      count: min
+    }
+  },
+  {
+    actions: {
+      increment: assign(ctx => ctx.count++),
+      decrement: assign(ctx => ctx.count--),
+      adjustCount: assign((ctx, payload) => (ctx.count += payload.delta)),
+      setCount: assign((ctx, payload) => (ctx.count = payload.value)),
+      setCountToMin: assign(ctx => (ctx.count = min))
+    },
+    guards: {
+      aboveMin: ctx => ctx.count > min,
+      belowMax: ctx => ctx.count < max,
+      valueIsInRange: (_, payload) =>
+        payload.value >= min && payload.value <= max,
+      resultIsInRange: (ctx, payload) => {
+        const result = ctx.count + payload.delta
+        return result >= min && result <= max
+      }
+    }
+  }
+)
+
+export function Serialized() {
+  const [current, send] = useMachine(machine)
+
+  // Pseudostates (evaluating conditions)
+  const { count } = current.context
+  const isAtMin = count <= min
+  const isAtMax = count >= max
+  const canAdd5Items = count + 5 <= max
+
+  return (
+    <div className="App">
+      <h1>Count: {current.context.count}</h1>
+      <button disabled={isAtMax} onClick={() => send("ADD")}>
+        Add Item
+      </button>
+      <button disabled={isAtMin} onClick={() => send("REMOVE")}>
+        Remove Item
+      </button>
+      <button
+        disabled={canAdd5Items}
+        onClick={() => send("ADJUST", { delta: 5 })}
+      >
+        Add 5 Items
+      </button>
+      <button disabled={isAtMax} onClick={() => send("SET", { value: max })}>
+        Set to Max
+      </button>
+      <button disabled={isAtMin} onClick={() => send("CLEAR")}>
+        Clear
+      </button>
+    </div>
+  )
+}
+```

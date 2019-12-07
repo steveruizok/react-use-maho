@@ -1,6 +1,6 @@
 #### Working with Data
 
-# XState Counter
+# XState Counter (Inline)
 
 ```jsx
 import React from "react"
@@ -10,61 +10,43 @@ import { useMachine } from "@xstate/react"
 const min = 0,
   max = 10
 
-const machine = Machine(
-  {
-    id: "toggle",
-    initial: "mandatory",
-    states: {
-      mandatory: {}
-    },
-    on: {
-      ADD: {
-        actions: "increment",
-        cond: "belowMax"
-      },
-      REMOVE: {
-        actions: "decrement",
-        cond: "aboveMin"
-      },
-      ADJUST: {
-        actions: "adjustCount",
-        cond: "resultIsInRange"
-      },
-      SET: {
-        actions: "setCount",
-        cond: "valueIsInRange"
-      },
-      CLEAR: {
-        actions: "setCountToMin",
-        cond: "aboveMin"
-      }
-    },
-    context: {
-      count: min
-    }
+const machine = Machine({
+  id: "toggle",
+  initial: "mandatory",
+  states: {
+    mandatory: {}
   },
-  {
-    actions: {
-      increment: assign(ctx => ctx.count++),
-      decrement: assign(ctx => ctx.count--),
-      adjustCount: assign((ctx, payload) => (ctx.count += payload.delta)),
-      setCount: assign((ctx, payload) => (ctx.count = payload.value)),
-      setCountToMin: assign(ctx => (ctx.count = min))
+  on: {
+    ADD: {
+      actions: assign(ctx => ctx.count++),
+      cond: ctx => ctx.count < max
     },
-    guards: {
-      aboveMin: ctx => ctx.count > min,
-      belowMax: ctx => ctx.count < max,
-      valueIsInRange: (_, payload) =>
-        payload.value >= min && payload.value <= max,
-      resultIsInRange: (ctx, payload) => {
+    REMOVE: {
+      actions: assign(ctx => ctx.count--),
+      cond: ctx => ctx.count > min
+    },
+    ADJUST: {
+      actions: assign((ctx, payload) => (ctx.count += payload.delta)),
+      cond: (ctx, payload) => {
         const result = ctx.count + payload.delta
         return result >= min && result <= max
       }
+    },
+    SET: {
+      actions: assign((ctx, payload) => (ctx.count = payload.value)),
+      cond: (ctx, payload) => payload.value >= min && payload.value <= max
+    },
+    CLEAR: {
+      actions: assign(ctx => (ctx.count = min)),
+      cond: ctx => ctx.count > min
     }
+  },
+  context: {
+    count: min
   }
-)
+})
 
-export function Serialized() {
+export function Inline() {
   const [current, send] = useMachine(machine)
 
   // Pseudostates (evaluating conditions)
@@ -93,7 +75,7 @@ export function Serialized() {
       </button>
       <button disabled={isAtMin} onClick={() => send("CLEAR")}>
         Clear
-      </button>
+      </button>{" "}
     </div>
   )
 }

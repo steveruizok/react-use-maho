@@ -1,43 +1,80 @@
-# Quick Docs
+# useMaho
 
-A pop-up static site for documenting your things.
-[See the demo](https://quick-docs.netlify.com/).
+The `useMaho` hook is a React hook for managing a component's state and events.
 
 ## Installation
 
-`npx create-quick-docs`
+NPM:
 
-_or_
+```
+npm install react-use-maho
+```
 
-1. Clone this repo or download and unzip
-2. From the project folder, run `npm install` or `yarn`
+Yarn:
+
+```
+yarn add react-use-maho
+```
 
 ## Usage
 
-This project creates pages automatically for any `.md` or `.mdx` files that are
-located in the **/content** folder.
+🔗[CodeSandbox](https://codesandbox.io/s/solitary-dew-i9c06)
 
-- Run `npm run start` or `yarn start` to start the development server
-- Add or edit `.md` or `.mdx` files in the **/content** folder
-- Edit navigation content in the **/content/nav** folder
-- Edit the theme or source components in the **/src** folder
-- Build to production with `npm run build` or `yarn build`
-- Host the **/public** folder anywhere on the web
+```jsx
+import { useMaho } from "react-use-maho"
 
-See the [demo](https://quick-docs.netlify.com/) for more detailed instructions.
+const Counter = ({ min = 0, max = 10 }) => {
+  const [state, send, { can }] = useMaho({
+    data: {
+      count: min
+    },
+    on: {
+      ADD: {
+        do: data => data.count++,
+        if: data => data.count < max
+      },
+      REMOVE: {
+        do: data => data.count--,
+        if: data => data.count > min
+      }
+    }
+  })
 
-## Notes
+  return (
+    <div>
+      <h2>Count: {state.data.count}</h2>
+      <button disabled={!can("ADD")} onClick={() => send("ADD")}>
+        Add Item
+      </button>
+      <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
+        Remove Item
+      </button>
+    </div>
+  )
+}
+```
 
-Thanks to:
+See the sidebar for:
 
-- John Otander for his work with
-  [gatsby-plugin-documentation](https://github.com/johno/gatsby-theme-documentation) -
-  where this idea started - and [MDX](https://github.com/mdx-js/mdx)
-- Brent Jackson for [Theme UI](https://github.com/system-ui/theme-ui)
+- notes on usage
+- comparisons with other state management solutions
+- more complex examples
+
+## Features
+
+- [x] Immutable state (with [immer](https://immerjs.github.io/))
+- [x] Event Handlers
+- [x] Event Dispatches (with payloads)
+- [x] Actions / conditions
+- [x] Serialized actions / conditions
+- [x] Multiple actions / conditions per event
+- [x] Multiple events per event handler
+- [ ] States
+- [ ] Nested states
 
 ## Contribution
 
 To contribute to this project, visit the
-[Github repository](https://github.com/steveruizok/quick-docs).
+[Github repository](https://github.com/steveruizok/react-use-maho).
 
 You can tweet the author at [@steveruizok](http://twitter.com/steveruizok).

@@ -1,162 +1,86 @@
-# Introduction
+# useMaho
 
-Welcome to QuickDocs, a pop-up static site for documenting your things.
+The `useMaho` hook is a React hook for managing a component's state and events.
 
 ## Installation
 
-To use QuickDocs:
-
-1. Install [Node.js](https://nodejs.org/en/).
-2. Open a new folder
-   [in your terminal app](https://www.groovypost.com/howto/open-command-window-terminal-window-specific-folder-windows-mac-linux/).
-3. Run `npx create-quick-docs`.
-4. Follow the instructions in the terminal.
-
-By default, this process will create your QuickDocs project in a new folder
-named `docs`. If you'd like your folder to be named something else, add the name
-like this:
+NPM:
 
 ```
-npx create-quick-docs myDocs
+npm install react-use-maho
 ```
 
-Once installed, you can jump straight to editing, developing and publishing your
-docs.
+Yarn:
 
----
-
-## Your project folder
-
-Let's take a tour of the project folder.
-
-### Content
-
-```js
-├── content/ // highlight-line
-│   ├─ docs/
-│   ├─ nav/
-│   ├─ assets/
-│   └─ index.mdx
-└── src/
+```
+yarn add react-use-maho
 ```
 
-The **content** folder contains all of your projects's content. Any [Markdown](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet) (`.md`) or
-[Markdown React](https://mdxjs.com/) files (`.mdx`) will be automatically
-converted into pages like this one. The page's URL will be determined by its
-path relative to the content folder.
+## Usage
 
-| Path                       | URL                                    |
-| -------------------------- | -------------------------------------- |
-| `/content/index.mdx`       | `http://www.your-site.com`             |
-| `/content/about.mdx`       | `http://www.your-site.com/about`       |
-| `/content/docs/index.mdx`  | `http://www.your-site.com/docs`        |
-| `/content/docs/button.mdx` | `http://www.your-site.com/docs/button` |
+🔗[CodeSandbox](https://codesandbox.io/s/solitary-dew-i9c06)
 
-Your project's navigation areas (header, sidebar, and footer) will pull content
-from the files contained in the **content/nav** folder.
+```jsx
+import { useMaho } from "react-use-maho"
 
-| File                       | Role            |
-| -------------------------- | --------------- |
-| `/content/nav/header.mdx`  | Header content  |
-| `/content/nav/sidebar.mdx` | Sidebar content |
-| `/content/nav/footer.mdx`  | Footer content  |
+const Counter = ({ min = 0, max = 10 }) => {
+  const [state, send, { can }] = useMaho({
+    data: {
+      count: min
+    },
+    on: {
+      ADD: {
+        do: data => data.count++,
+        if: data => data.count < max
+      },
+      REMOVE: {
+        do: data => data.count--,
+        if: data => data.count > min
+      }
+    }
+  })
 
-> The sidebar's links are _not_ automatically generated. If you add a new page
-> to your project, you'll need to open `sidebar.mdx` and add a link to that
-> page.
-
-As with all `.mdx` files, you are free to include React components alongside
-standard Markdown. While you can `import` these components directly into the
-file, you may also use **shortcodes** as described in the next section.
-
-| File                       | Notes                           |
-| -------------------------- | ------------------------------- |
-| `/content/docs/button.mdx` | Imports a component directly.   |
-| `/content/nav/header.mdx`  | Uses shortcodes for components. |
-
-### Source
-
-```js
-├── content/
-└── src/      // highlight-line
-    ├─ components/
-    ├─ templates/
-    ├─ index.js
-    └─ theme.js
+  return (
+    <div>
+      <h2>Count: {state.data.count}</h2>
+      <button disabled={!can("ADD")} onClick={() => send("ADD")}>
+        Add Item
+      </button>
+      <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
+        Remove Item
+      </button>
+    </div>
+  )
+}
 ```
 
-The **src** folder contains the rest of the projects's source code. If you want
-to change how the site looks, works or behaves, you can make those changes here.
+See the sidebar for:
 
-This project uses a development that that includes:
+- notes on usage
+- comparisons with other state management solutions
+- more complex examples
 
-- [React](https://reactjs.org/)
-- [Gatsby](https://www.gatsbyjs.org/)
-- [Theme UI](https://theme-ui.com/)
+## Features
 
-The easiest place to start would be `theme.js`, which defines the site's theme
-using the [System UI Theme Specification](https://theme-ui.com/theme-spec).
+- [x] Typescript
+- [x] Immutable state (with [immer](https://immerjs.github.io/))
+- [x] Event Handlers
+- [x] Event Dispatches (with payloads)
+- [x] Actions / conditions
+- [x] Serialized actions / conditions
+- [x] Multiple actions / conditions per event
+- [x] Multiple events per event handler
+- [x] Computed values
 
-To create **shortcodes** for React components that you'd like to use in your
-`.mdx` files, add these components to the `src/components.js` file.
-[Click here](https://mdxjs.com/blog/shortcodes/) for more information on
-shortcodes.
+In Progress:
 
----
-
-## Editing
-
-For editing, I recommend [Visual Studio Code](https://code.visualstudio.com/)
-(or VSCode).
-
-1. Install [VSCode](https://code.visualstudio.com/).
-2. In the VSCode menu, select **File > Open** and select your project's folder.
-3. To get help editing your `.mdx` files, install the
-   [MDX plugin](https://marketplace.visualstudio.com/items?itemName=silvenon.mdx).
-4. Edit or add `.mdx` files in your projects `content` folder.
-
-To see your changes live in the browser, you can start the project on a local
-development server. With the project folder open in VSCode:
-
-1. Open the integrated terminal by selecting **View > Terminal**.
-2. In the terminal, type `npm start` and press Enter.
-3. Wait for the start-up process to complete.
-4. Visit the server's local URL in your browser – most likely this is
-   `http://localhost:8000/`.
-
-While the server is running, saving a changed file will update that part of your
-project.
-
-To stop the local server, press `control + c` in the terminal. You can also stop
-the server by closing your VSCode window.
-
----
-
-## Publishing
-
-To publish this project on the web, run `npm run build` in the terminal. This
-will create a production-ready website in your project's `public` folder. You
-have many ways to host this website, but here's one:
-
-1. Run `npm run build` to create your `public` folder.
-2. Open your browser and visit [Netlify Drop](http://netlify.com/drop).
-3. Open your project folder in Finder.
-4. Drag the entire `public` folder onto the Netlify Drop page.
-
-This will create a hosted version of your project. (The URL will be random,
-though you can change it under Site Settings.) You can read more about hosting
-on Netlify [here](https://www.gatsbyjs.org/docs/hosting-on-netlify/).
-
----
+- [x] States
+- [x] Nested states
+- [ ] Transitions
 
 ## Contribution
 
 To contribute to this project, visit the
-[Github repository](https://github.com/steveruizok/quick-docs).
+[Github repository](https://github.com/steveruizok/react-use-maho).
 
 You can tweet the author at [@steveruizok](http://twitter.com/steveruizok).
-
-Thanks to John Otander for his work with
-[gatsby-plugin-documentation](https://github.com/johno/gatsby-theme-documentation)
-and [MDX](https://github.com/mdx-js/mdx), and to and Brent Jackson for
-[Theme UI](https://github.com/system-ui/theme-ui).

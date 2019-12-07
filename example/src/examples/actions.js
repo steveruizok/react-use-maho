@@ -8,22 +8,20 @@ const App = () => {
       count: 0
     },
     on: {
-      INCREMENT: {
+      ADD: {
         do: data => data.count++
       },
-      DECREMENT: {
+      REMOVE: {
         do: data => data.count--
       }
     }
   })
 
-  console.log(state)
-
   return (
     <div>
       <h2>Count: {state.data.count}</h2>
-      <button onClick={() => send("INCREMENT")}>Increment</button>
-      <button onClick={() => send("DECREMENT")}>Decrement</button>
+      <button onClick={() => send("ADD")}>Add Item</button>
+      <button onClick={() => send("REMOVE")}>Remove Item</button>
     </div>
   )
 }
