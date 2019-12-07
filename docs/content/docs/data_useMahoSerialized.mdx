@@ -1,9 +1,13 @@
-// @ts-check
+#### Working with Data
+
+# useMaho Counter
+
+```jsx
 import React from "react"
 import { useMaho } from "react-use-maho"
 
 const ItemCounter = ({ min = 0, max = 10 }) => {
-  const [state, send, { can }] = useMaho({
+  const [state, send] = useMaho({
     data: {
       count: min
     },
@@ -44,32 +48,20 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
         const result = data.count + delta
         return result >= min && result <= max
       }
-    },
-    compute: {
-      lastModified: () => new Date()
     }
   })
 
   return (
     <div>
       <h2>Count: {state.data.count}</h2>
-      <h4>Last Modified: {state.computed.lastModified.toLocaleTimeString()}</h4>
-      <button disabled={!can("ADD")} onClick={() => send("ADD")}>
-        Add Item
-      </button>
-      <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
-        Remove Item
-      </button>
-      <button disabled={!can("ADJUST", 5)} onClick={() => send("ADJUST", 5)}>
-        Add 5 Items
-      </button>
-      <button disabled={!can("SET", max)} onClick={() => send("SET", max)}>
-        Add Max
-      </button>
-      <button disabled={!can("CLEAR")} onClick={() => send("CLEAR")}>
-        Clear
-      </button>{" "}
+      <button onClick={() => send("ADD")}>Add Item</button>
+      <button onClick={() => send("REMOVE")}>Remove Item</button>
+      <button onClick={() => send("ADJUST", 5)}>Add 5 Items</button>
+      <button onClick={() => send("SET", max)}>Add Max</button>
+      <button onClick={() => send("CLEAR")}>Clear</button>{" "}
     </div>
   )
 }
+
 export default ItemCounter
+```

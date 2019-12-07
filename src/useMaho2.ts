@@ -10,14 +10,14 @@ import { useImmer } from "use-immer"
 
 // Condition
 type Condition<D> = (
-  data: Readonly<Draft<D>> | undefined,
+  data: Readonly<D | Draft<D>> | undefined,
   payload?: any
 ) => boolean
 
 type SerializedConditions<D> = Record<string, Condition<D>>
 
 // Action
-type Action<D> = (data: Draft<D>, payload?: any) => any
+type Action<D> = (data: Draft<D> | undefined, payload?: any) => any
 
 type SerializedActions<D> = Record<string, Action<D>>
 
@@ -29,7 +29,7 @@ type Event<D, SC, SA> = {
   do?: ((keyof SA & string) | Action<D>) | ((keyof SA & string) | Action<D>)[]
 }
 
-type Events<D, SC, SA> = Record<string, Event<D, SC, SA>>
+type Events<D, SC, SA> = Record<string, Event<D, SC, SA> | Event<D, SC, SA>[]>
 
 /* ----------------- Computed Values ---------------- */
 
@@ -303,7 +303,155 @@ export function useMaho<
   C extends ComputedValues<Draft<D>>,
   CR = ComputedReturns<Draft<D>, C>
 >(options: Options<D, SC, SA, C>) {
-  const [state, update] = useImmer<MachineState<D, SC, SA, CR>>(init(options))
+  type IState = State<D, SC, SA>
+  type IEvent = Event<D, SC, SA>
+  type ICondition = Condition<D>
+  type IMachineState = MachineState<D, SC, SA, CR>
+  type IEventsInPath = [string, IEvent | IEvent[]][]
+
+  const [state, update] = useImmer<IMachineState>(init(options))
+
+  // Helpers
+  function getPath(
+    state: IState,
+    path: IState[] = []
+  ): { state: IState; path: IState[] } {
+    if (state.parent === undefined) {
+      return { state, path }
+    }
+
+    return getPath(state.parent, [...path, state])
+  }
+
+  function getEventsInPath(state: IMachineState | Draft<IMachineState>) {
+    const { current, on } = state
+
+    let eventHandlers: IEventsInPath = []
+
+    // If we have a current state, get the events from the path
+    if (current !== undefined) {
+      const { path } = getPath(current)
+
+      eventHandlers = path.reduce<IEventsInPath>((acc, state) => {
+        if (state.on !== undefined) {
+          for (let key in state.on) {
+            acc.push([key, state.on[key]])
+          }
+        }
+        return acc
+      }, [])
+    }
+
+    // If we have root-level event handlers, look there
+    if (on !== undefined) {
+      for (let key in on) {
+        eventHandlers.push([key, on[key]])
+      }
+    }
+
+    return eventHandlers
+  }
+
+  function isEventAvailable(
+    state: IMachineState | Draft<IMachineState>,
+    group: (IEvent | IEvent[])[],
+    payload: any
+  ) {
+    return group.some(event => {
+      const events = Array.isArray(event) ? event : Array(event)
+      return events.some(event => {
+        let conditions = event.if
+
+        if (conditions === undefined) {
+          return true
+        }
+
+        if (!Array.isArray(conditions)) {
+          conditions = Array(conditions)
+        }
+
+        return conditions.every(condition => {
+          let cond: ICondition | undefined = undefined
+
+          if (typeof condition === "string") {
+            if (state.conditions !== undefined) {
+              cond = state.conditions[condition]
+            } else {
+              console.error("No serialized conditions!")
+              return false
+            }
+          } else if (typeof condition === "function") {
+            cond = condition
+          }
+
+          return cond === undefined ? true : cond(state.data, payload)
+        })
+      })
+    })
+  }
+
+  function getAvailableEventsInPath(
+    state: IMachineState | Draft<IMachineState>,
+    events: IEventsInPath
+  ) {
+    return events.reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
+      const events = Array.isArray(value) ? value : Array(value)
+
+      acc[key] = events.some(event => {
+        let conditions = event.if
+
+        if (conditions === undefined) {
+          return true
+        }
+
+        if (!Array.isArray(conditions)) {
+          conditions = Array(conditions)
+        }
+
+        return conditions.every(condition => {
+          let cond: ICondition | undefined = undefined
+
+          if (typeof condition === "string") {
+            if (state.conditions !== undefined) {
+              cond = state.conditions[condition]
+            } else {
+              console.error("No serialized conditions!")
+              return false
+            }
+          } else if (typeof condition === "function") {
+            cond = condition
+          }
+
+          return cond === undefined ? true : cond(state.data)
+        })
+      })
+
+      return acc
+    }, {})
+  }
+
+  const eventsInPath = React.useMemo(() => {
+    return getEventsInPath(state)
+  }, [state])
+
+  const availableEventsInPath = React.useMemo(() => {
+    return getAvailableEventsInPath(state, eventsInPath)
+  }, [state, eventsInPath])
+
+  const can = React.useCallback(
+    function can(name: string, payload?: any) {
+      const eventInPath = eventsInPath
+        .filter(([key]) => key === name)
+        .map(([key, value]) => value)
+
+      if (!eventInPath) {
+        return false
+      }
+
+      return isEventAvailable(state, eventInPath, payload)
+    },
+    [eventsInPath]
+  )
 
   const send = React.useCallback(
     function send(event: string, payload?: any) {
@@ -311,83 +459,74 @@ export function useMaho<
         let { compute } = options
         let { current, data, on, actions, conditions } = draft
 
-        // Helpers
-        function getPath(
-          state: any,
-          path: any[] = []
-        ): { state: State<D, SC, SA>; path: State<D, SC, SA>[] } {
-          if (state.parent === undefined) {
-            return { state, path }
-          }
-
-          return getPath(state.parent, [...path, state])
-        }
-
         /* ---------------- Get Event Handler(s) --------------- */
 
-        // Event handlers ( multiple [ ], collectedInPath [ ]])
-        let eventHandler: Event<D, SC, SA> | undefined
+        // Event handlers ( multiple [x], collectedInPath [x])
+        let eventHandlers: Event<D, SC, SA>[] = []
 
-        // Get event handler from current state
+        // Get event handler from current state path
         if (current !== undefined) {
           const { path } = getPath(current)
-          for (let state of path) {
+
+          eventHandlers = path.reduce<Event<D, SC, SA>[]>((acc, state) => {
             if (state.on !== undefined) {
-              if (state.on[event] !== undefined) {
-                eventHandler = state.on[event]
-                break
-              }
+              const handler = state.on[event]
+              pushContents(handler, acc)
             }
-          }
+            return acc
+          }, [])
         }
 
-        // If none found, find event handler from machine
-        if (eventHandler === undefined) {
-          if (on !== undefined) {
-            if (on[event] !== undefined) {
-              eventHandler = on[event]
-            }
-          }
+        // If we have root-level event handlers, look there
+        if (on !== undefined) {
+          const rootHandler = on[event]
+          pushContents(rootHandler, eventHandlers)
         }
 
-        // Still no event handler, bail
-        if (eventHandler === undefined) return
+        // If we didn't find any events, bail
+        if (eventHandlers.length === 0) {
+          return
+        }
 
         /* ------------- Evaluate Event Handler ------------- */
 
-        // Condition (multiple [x], serialized [x])
-        if (eventHandler.if !== undefined) {
-          let eventConditions = Array.isArray(eventHandler.if)
-            ? eventHandler.if
-            : [eventHandler.if]
+        for (let eventHandler of eventHandlers) {
+          // Condition (multiple [x], serialized [x])
+          if (eventHandler.if !== undefined) {
+            let eventConditions = Array.isArray(eventHandler.if)
+              ? eventHandler.if
+              : [eventHandler.if]
 
-          for (let pCond of eventConditions) {
-            let cond =
-              typeof pCond === "string" && conditions !== undefined
-                ? conditions[pCond]
-                : (pCond as Condition<D>)
+            for (let pCond of eventConditions) {
+              let cond =
+                typeof pCond === "string" && conditions !== undefined
+                  ? conditions[pCond]
+                  : (pCond as Condition<D>)
 
-            if (!cond(data ? { ...data } : undefined, payload)) {
-              return
+              if (!cond(data ? { ...data } : undefined, payload)) {
+                return
+              }
+            }
+          }
+
+          // Action (multiple [x], serialized [x])
+          if (eventHandler.do !== undefined) {
+            let eventActions = Array.isArray(eventHandler.do)
+              ? eventHandler.do
+              : [eventHandler.do]
+
+            for (let pAction of eventActions) {
+              let action =
+                typeof pAction === "string" && actions !== undefined
+                  ? actions[pAction]
+                  : (pAction as Action<D>)
+
+              action(data, payload)
             }
           }
         }
 
-        // Action (multiple [x], serialized [x])
-        if (eventHandler.do !== undefined && data !== undefined) {
-          let eventActions = Array.isArray(eventHandler.do)
-            ? eventHandler.do
-            : [eventHandler.do]
-
-          for (let pAction of eventActions) {
-            let action =
-              typeof pAction === "string" && actions !== undefined
-                ? actions[pAction]
-                : (pAction as Action<D>)
-
-            action(data, payload)
-          }
-        }
+        // Auto events (onEnter [], onExit [], onChange [])
 
         // Transition (multiple [ ], serialized [ ])
 
@@ -404,5 +543,21 @@ export function useMaho<
     [update]
   )
 
-  return [state, send] as const
+  return [state, send, { can }] as const
+}
+
+/* -------------------------------------------------- */
+/*                       Helpers                      */
+/* -------------------------------------------------- */
+
+const pushContents = <D>(source: D | D[] | undefined, target: D[]) => {
+  if (source === undefined) {
+    return
+  }
+
+  if (Array.isArray(source)) {
+    target.push(...source)
+  } else {
+    target.push(source)
+  }
 }

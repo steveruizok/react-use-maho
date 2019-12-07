@@ -1,0 +1,54 @@
+#### Working with Data
+
+# useMaho Counter
+
+```jsx
+import React from "react"
+import { useMaho } from "react-use-maho"
+
+const ItemCounter = ({ min = 0, max = 10 }) => {
+  const [state, send] = useMaho({
+    data: {
+      count: min
+    },
+    on: {
+      ADD: {
+        do: data => data.count++,
+        if: data => data.count < max
+      },
+      REMOVE: {
+        do: data => data.count--,
+        if: data => data.count > min
+      },
+      ADJUST: {
+        do: (data, delta) => (data.count += delta),
+        if: (data, delta) => {
+          const result = data.count + delta
+          return result >= min && result <= max
+        }
+      },
+      SET: {
+        do: (data, value) => (data.count = value),
+        if: (_, value) => value >= min && value <= max
+      },
+      CLEAR: {
+        do: data => (data.count = min)
+        if: data => data.count > min
+      }
+    },
+  })
+
+  return (
+    <div>
+      <h2>Count: {state.data.count}</h2>
+      <button onClick={() => send("ADD")}>Add Item</button>
+      <button onClick={() => send("REMOVE")}>Remove Item</button>
+      <button onClick={() => send("ADJUST", 5)}>Add 5 Items</button>
+      <button onClick={() => send("SET", max)}>Add Max</button>
+      <button onClick={() => send("CLEAR")}>Clear</button>{" "}
+    </div>
+  )
+}
+
+export default ItemCounter
+```

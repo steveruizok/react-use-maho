@@ -1,0 +1,121 @@
+# Using Data
+
+Let's set aside states for a moment and look at the `useMaho` hook as a way of keeping track of a component's stateful data, or the same kind of stuff you'd normally keep track of with a `useState` or `useReducer` hook.
+
+## Defining Data
+
+In a `Maho` machine, **data** is an optional object for holding the data context of your machine. You can give this option whatever properties you want. On each update, the `data` object's current values will be available as shown below.
+
+```jsx
+const App = () => {
+  const [state] = useMaho({
+    data: {
+      count: 0
+    }
+  })
+
+  return (
+    <div>
+      <h1>Count: {state.data.count}</h1>
+    </div>
+  )
+}
+```
+
+## Updating Data
+
+Unlike a regular `useState` hook, the `useMaho` hook does not provide a way to arbitrarily change this data.
+
+Instead, you'll define a set of **event handlers** with **actions** that can mutate the `data`. You will then trigger those event handlers through **events** that you **send** to the hook.
+
+An initial solution might look something like this:
+
+```jsx
+const App = () => {
+  const [state, send] = useMaho({
+    data: {
+      count: 0
+    },
+    on: {
+      INCREMENT: {
+        do: data => data.count++
+      },
+      DECREMENT: {
+        do: data => data.count--
+      }
+    }
+  })
+
+  return (
+    <div>
+      <h1>Count: {state.data.count}</h1>
+      <button onClick={() => send("INCREMENT")}>Increment</button>
+      <button onClick={() => send("DECREMENT")}>Decrement</button>
+    </div>
+  )
+}
+```
+
+Let's break down each of those concepts.
+
+### Event Handlers
+
+An **event handler** is a named thing that happens in your component. Many things can happen as a result of an event, but for now we'll just focus on the event handler's **actions**, or how the event should effect the `data` state.
+
+In a `useMaho` hook, you'll define the hook's "root" event handlers in the `on` object.
+
+```jsx
+const App = () => {
+  const [state, send] = useMaho({
+    data: {
+      count: 0
+    },
+    // highlight-start
+    on: {
+      INCREMENT: {
+        do: data => data.count++
+      },
+      DECREMENT: {
+        do: data => data.count--
+      }
+    }
+    // highlight-end
+  })
+```
+
+As we'll see later when learning about states, event handlers defined here will always be available, regardless of the hook's current state.
+
+### Actions
+
+An event handler's actions are defined in the event object's `do` property.
+
+```jsx
+const App = () => {
+  const [state, send] = useMaho({
+    data: {
+      count: 0
+    },
+    on: {
+      INCREMENT: {
+        do: data => data.count++ // highlight-line
+      },
+      DECREMENT: {
+        do: data => data.count-- // highlight-line
+      }
+    }
+  })
+```
+
+An **action** is a function that receives the current `data`, together with a `payload`, and mutates that data. (We'll learn about payloads later on.)
+
+Note that, unlike a standard `useState` or `useReducer` hook, **you do not have to return the new state** from an action function. It's enough to just mutate the `data` parameter—the `useMaho` hook will take care of immutability for you.
+
+### Sending Events
+
+Finally, to kick off an event handler, you'll use the hook's `send` method to **send** an **event** to the machine.
+
+```jsx
+<button onClick={() => send("INCREMENT")}>Increment</button>
+```
+
+If the machine has a matching event handler in its available event handlers, that handler will run.
