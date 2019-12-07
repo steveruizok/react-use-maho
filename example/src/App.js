@@ -3,30 +3,45 @@ import React from "react"
 import { useMaho } from "react-use-maho"
 
 const ItemCounter = ({ min = 0, max = 10 }) => {
-  const [state, send, { can }] = useMaho({
+  const [state, send, { can, isIn }] = useMaho({
     data: {
       count: min
     },
-    on: {
-      ADD: {
-        do: "increment",
-        if: "belowMax"
+    initial: "inactive",
+    states: {
+      inactive: {
+        on: {
+          TURN_ON: {
+            to: "active"
+          }
+        }
       },
-      REMOVE: {
-        do: "decrement",
-        if: "aboveMin"
-      },
-      ADJUST: {
-        do: "adjustCount",
-        if: "resultIsInRange"
-      },
-      SET: {
-        do: "setCountToValue",
-        if: "valueIsInRange"
-      },
-      CLEAR: {
-        do: "setCountToMin",
-        if: "aboveMin"
+      active: {
+        on: {
+          TURN_OFF: {
+            to: "inactive"
+          },
+          ADD: {
+            do: "increment",
+            if: "belowMax"
+          },
+          REMOVE: {
+            do: "decrement",
+            if: "aboveMin"
+          },
+          ADJUST: {
+            do: "adjustCount",
+            if: "resultIsInRange"
+          },
+          SET: {
+            do: "setCountToValue",
+            if: "valueIsInRange"
+          },
+          CLEAR: {
+            do: "setCountToMin",
+            if: "aboveMin"
+          }
+        }
       }
     },
     actions: {
@@ -50,25 +65,42 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
     }
   })
 
+  console.log(state)
+
   return (
     <div>
+      <h2>Current State: {state.current.name}</h2>
       <h2>Count: {state.data.count}</h2>
       <h4>Last Modified: {state.computed.lastModified.toLocaleTimeString()}</h4>
-      <button disabled={!can("ADD")} onClick={() => send("ADD")}>
-        Add Item
+      <button disabled={!can("TURN_ON")} onClick={() => send("TURN_ON")}>
+        Turn on
       </button>
-      <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
-        Remove Item
+      <button disabled={!can("TURN_OFF")} onClick={() => send("TURN_OFF")}>
+        Turn off
       </button>
-      <button disabled={!can("ADJUST", 5)} onClick={() => send("ADJUST", 5)}>
-        Add 5 Items
-      </button>
-      <button disabled={!can("SET", max)} onClick={() => send("SET", max)}>
-        Add Max
-      </button>
-      <button disabled={!can("CLEAR")} onClick={() => send("CLEAR")}>
-        Clear
-      </button>{" "}
+      <hr />
+      {isIn("active") && (
+        <>
+          <button disabled={!can("ADD")} onClick={() => send("ADD")}>
+            Add Item
+          </button>
+          <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
+            Remove Item
+          </button>
+          <button
+            disabled={!can("ADJUST", 5)}
+            onClick={() => send("ADJUST", 5)}
+          >
+            Add 5 Items
+          </button>
+          <button disabled={!can("SET", max)} onClick={() => send("SET", max)}>
+            Add Max
+          </button>
+          <button disabled={!can("CLEAR")} onClick={() => send("CLEAR")}>
+            Clear
+          </button>{" "}
+        </>
+      )}
     </div>
   )
 }

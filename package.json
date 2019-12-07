@@ -1,7 +1,7 @@
 {
   "name": "react-use-maho",
-  "version": "1.0.0",
-  "description": "State management with machines, for humans.",
+  "version": "1.0.1",
+  "description": "State management with machines for humans.",
   "author": "steveruizok",
   "license": "MIT",
   "repository": "steveruizok/react-use-maho",
@@ -20,6 +20,7 @@
     "prepare": "yarn run build",
     "predeploy": "cd example && yarn install && yarn run build",
     "deploy": "gh-pages -d example/build",
+    "start-example": "cd example && yarn start",
     "start-docs": "cd docs && yarn start",
     "build-docs": "cd docs && yarn build"
   },
