@@ -1,6 +1,7 @@
 {
   "name": "react-use-maho-example",
   "homepage": "https://steveruizok.github.io/react-use-maho",
+  "author": "Steve Ruiz",
   "version": "0.0.0",
   "license": "MIT",
   "private": true,

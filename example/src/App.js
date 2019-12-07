@@ -21,7 +21,7 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
         if: "resultIsInRange"
       },
       SET: {
-        do: "setCount",
+        do: "setCountToValue",
         if: "valueIsInRange"
       },
       CLEAR: {
@@ -32,7 +32,7 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
     actions: {
       increment: data => data.count++,
       decrement: data => data.count--,
-      setCount: (data, value) => (data.count = value),
+      setCountToValue: (data, value) => (data.count = value),
       adjustCount: (data, delta) => (data.count += delta),
       setCountToMin: data => (data.count = min)
     },

@@ -1,7 +1,7 @@
 {
   "name": "react-use-maho",
   "version": "1.0.0",
-  "description": "A training-wheels tool for managing stare with statecharts.",
+  "description": "State management with machines, for humans.",
   "author": "steveruizok",
   "license": "MIT",
   "repository": "steveruizok/react-use-maho",
@@ -19,7 +19,9 @@
     "start": "rollup -c -w",
     "prepare": "yarn run build",
     "predeploy": "cd example && yarn install && yarn run build",
-    "deploy": "gh-pages -d example/build"
+    "deploy": "gh-pages -d example/build",
+    "start-docs": "cd docs && yarn start",
+    "build-docs": "cd docs && yarn build"
   },
   "dependencies": {
     "@types/lodash-es": "^4.17.3",
