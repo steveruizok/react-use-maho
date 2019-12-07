@@ -1,13 +1,13 @@
-# useMaho
+# react-use-maho
 
-The `useMaho` hook is a React hook for managing a component's state and events.
+[Learn more about this project](https://react-use-maho.netlify.com).
 
-## Installation
+## Install
 
 NPM:
 
 ```
-npm install react-use-maho
+npm install --save react-use-maho
 ```
 
 Yarn:
@@ -16,65 +16,10 @@ Yarn:
 yarn add react-use-maho
 ```
 
-## Usage
+## License
 
-🔗[CodeSandbox](https://codesandbox.io/s/solitary-dew-i9c06)
+MIT © [steveruizok](https://github.com/steveruizok)
 
-```jsx
-import { useMaho } from "react-use-maho"
+---
 
-const Counter = ({ min = 0, max = 10 }) => {
-  const [state, send, { can }] = useMaho({
-    data: {
-      count: min
-    },
-    on: {
-      ADD: {
-        do: data => data.count++,
-        if: data => data.count < max
-      },
-      REMOVE: {
-        do: data => data.count--,
-        if: data => data.count > min
-      }
-    }
-  })
-
-  return (
-    <div>
-      <h2>Count: {state.data.count}</h2>
-      <button disabled={!can("ADD")} onClick={() => send("ADD")}>
-        Add Item
-      </button>
-      <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
-        Remove Item
-      </button>
-    </div>
-  )
-}
-```
-
-See the sidebar for:
-
-- notes on usage
-- comparisons with other state management solutions
-- more complex examples
-
-## Features
-
-- [x] Immutable state (with [immer](https://immerjs.github.io/))
-- [x] Event Handlers
-- [x] Event Dispatches (with payloads)
-- [x] Actions / conditions
-- [x] Serialized actions / conditions
-- [x] Multiple actions / conditions per event
-- [x] Multiple events per event handler
-- [ ] States
-- [ ] Nested states
-
-## Contribution
-
-To contribute to this project, visit the
-[Github repository](https://github.com/steveruizok/react-use-maho).
-
-You can tweet the author at [@steveruizok](http://twitter.com/steveruizok).
+This hook is created using [create-react-hook](https://github.com/hermanya/create-react-hook).
