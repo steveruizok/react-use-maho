@@ -6,85 +6,209 @@ const MachineContext = React.createContext(null)
 export function Visualizer({ machine }) {
   return (
     <MachineContext.Provider value={machine}>
-      <div>
-        <div style={{ border: "1px solid #000", padding: 16 }}>
-          machine
-          <ul>
-            {machine.states !== undefined && (
-              <States initial={machine.initial} states={machine.states} />
-            )}
-            {machine.on !== undefined && (
-              <EventHandlers handlers={machine.on} />
-            )}
-          </ul>
+      <div
+        style={{
+          border: "1px solid #000",
+          borderBottom: "1px solid #777",
+          borderRadius: 8,
+          overflow: "hidden",
+          width: "fit-content"
+        }}
+      >
+        <div
+          style={{
+            padding: 8,
+            backgroundColor: "#333",
+            color: "#fff",
+            borderBottom: "1px solid #777"
+          }}
+        >
+          Machine
         </div>
+        {machine.states !== undefined && (
+          <div
+            style={{
+              borderBottom: "1px solid #000",
+              position: "relative"
+            }}
+          >
+            <Label>States</Label>
+            <States initial={machine.initial} states={machine.states} />
+          </div>
+        )}
+        {machine.on !== undefined && (
+          <Events inPath={true} handlers={machine.on} />
+        )}
+
+        {machine.data !== undefined && (
+          <div
+            style={{
+              backgroundColor: "#fcfcfc",
+              padding: 8,
+              borderBottom: "1px solid #000",
+              position: "relative"
+            }}
+          >
+            <Label>Data</Label>
+            {Object.keys(machine.data).map((key, i) => (
+              <div key={i}>
+                <b>{key}</b>: {JSON.stringify(machine.data[key])}
+              </div>
+            ))}
+          </div>
+        )}
+        {machine.computed !== undefined && (
+          <div
+            style={{
+              backgroundColor: "#fcfcfc",
+              padding: 8,
+              position: "relative"
+            }}
+          >
+            <Label>Computed</Label>
+            {Object.keys(machine.computed).map((key, i) => (
+              <div key={i}>
+                <b>{key}</b>: {JSON.stringify(machine.computed[key])}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </MachineContext.Provider>
   )
 }
 
-function States({ initial, states }) {
+function Label({ children }) {
   return (
-    <li>
-      States
-      {states.map((branch, i) => (
-        <StatesBranch key={i} initial={initial} branch={branch} />
-      ))}
-    </li>
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        right: 4,
+        fontSize: 12,
+        padding: "2px 4px",
+        border: "1px solid #ccc",
+        borderRadius: 4
+      }}
+    >
+      {children}
+    </div>
   )
 }
 
+function States({ initial, states }) {
+  return states.map((branch, i) => (
+    <div
+      key={i}
+      style={{ padding: 8, display: "grid", gridAutoFlow: "row", gap: 8 }}
+    >
+      <StatesBranch initial={initial} branch={branch} />
+    </div>
+  ))
+}
+
 function StatesBranch({ initial, branch }) {
-  return (
-    <ul>
-      {branch.map((state, i) => (
-        <State key={i} state={state} isInitial={initial === state.name} />
-      ))}
-    </ul>
-  )
+  return branch.map((state, i) => (
+    <State key={i} state={state} isInitial={initial === state.name} />
+  ))
 }
 
 function State({ state, isInitial }) {
   const machine = React.useContext(MachineContext)
   const inPath = machine.path.includes(state)
+
   return (
-    <li>
-      <span style={{ backgroundColor: inPath ? "#ffd84c" : "#fff" }}>
-        {isInitial ? <b>{state.name}</b> : state.name}
+    <div
+      style={{
+        border: "1px solid #000",
+        borderRadius: 8,
+        overflow: "hidden",
+        width: "fit-content",
+        backgroundColor: inPath ? "#fffddf" : "#fff",
+        boxShadow: "1px 1px 0px #333"
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: inPath ? "#ffd84c" : "#eee",
+          borderBottom: "1px solid #000",
+          padding: 8
+        }}
+      >
+        ▪︎ {isInitial ? <b>{state.name}</b> : state.name}
+      </div>
+      {state.on !== undefined && <Events inPath={inPath} handlers={state.on} />}{" "}
+      {state.states !== undefined && (
+        <States initial={state.initial} states={state.states} />
+      )}
+    </div>
+  )
+}
+
+function Events({ inPath, handlers }) {
+  return (
+    <div style={{ position: "relative" }}>
+      <Label>Events</Label>
+      {Object.keys(handlers).map((key, i) => (
+        <EventHandlers
+          key={i}
+          name={key}
+          inPath={inPath}
+          handlers={handlers[key]}
+        />
+      ))}
+    </div>
+  )
+}
+
+function EventHandlers({ name, inPath, handlers }) {
+  const machine = React.useContext(MachineContext)
+  if (!Array.isArray(handlers)) handlers = Array(handlers)
+
+  let canRun = handlers.every(handler => {
+    let { if: conds } = handler
+    if (conds !== undefined) {
+      conds = Array.isArray(conds) ? conds : Array(conds)
+      console.log(conds)
+      return conds.every(cond => {
+        if (typeof cond === "string") {
+          const c = machine.conditions[cond]
+          return c(machine.data)
+        } else {
+          return cond(machine.data)
+        }
+      })
+    } else {
+      return true
+    }
+  })
+
+  return (
+    <div style={{ borderBottom: "1px solid #000", padding: 12 }}>
+      <span
+        style={{
+          backgroundColor: inPath && canRun ? "#99dd66" : "#efefef",
+          padding: "2px 8px 2px 8px",
+          border: `1px solid ${canRun ? "#99dd66" : "#fff"}`,
+          borderRadius: 6,
+          fontSize: 16
+        }}
+      >
+        {" "}
+        {name}
       </span>
-      <ul>
-        {state.on !== undefined && <Event handlers={state.on} />}{" "}
-        {state.states !== undefined && (
-          <States initial={state.initial} states={state.states} />
-        )}
-      </ul>
-    </li>
+      {handlers.map((h, i) => (
+        <EventHandler key={i} inPath={inPath} canRun={canRun} event={h} />
+      ))}
+    </div>
   )
 }
 
-function Event({ handlers }) {
-  return (
-    <li>
-      Events
-      <ul>
-        {Object.keys(handlers).map((key, i) => (
-          <EventHandler key={i} name={key} event={handlers[key]} />
-        ))}
-      </ul>
-    </li>
-  )
-}
-
-function EventHandlers({ handlers }) {
-  console.log(handlers)
-  return <div />
-}
-
-function EventHandler({ name, event }) {
+function EventHandler({ inPath, canRun, event }) {
   const machine = React.useContext(MachineContext)
   let conditions = []
   let actions = []
-  let canRun = true
+  let handlerCanRun = true
 
   let string = ""
 
@@ -97,20 +221,16 @@ function EventHandler({ name, event }) {
       if (typeof cond === "string") {
         const c = machine.conditions[cond]
         if (!c(machine.data)) {
-          canRun = false
+          handlerCanRun = false
         }
       } else {
         if (!cond(machine.data)) {
-          canRun = false
+          handlerCanRun = false
         }
       }
-      const str = typeof cond === "string" ? cond : "{...}"
-      conditions.push(canRun ? str : `-${str}-`)
+      conditions.push(typeof cond === "string" ? cond : "{...}")
     }
   }
-
-  const conditionsString =
-    conditions.length > 0 ? "if ( " + conditions.join(", ") + " )" : undefined
 
   // Actions
 
@@ -131,23 +251,24 @@ function EventHandler({ name, event }) {
   const transitionString =
     transition === undefined ? undefined : `to -> ${transition}`
 
-  const strings = [transitionString, actionsString, conditionsString]
-    .filter(v => v)
-    .join(" ")
-
   string = [transitionString, actionsString].filter(v => v).join(", ")
 
   if (conditions.length > 0) {
-    string = `if ( ${conditions.join(", ")} ) { ${string} }`
-  }
-
-  if (string.length > 0) {
-    string = " = " + string
+    string = `▸ if ( ${conditions.join(", ")} ) { ${string} }`
+  } else {
+    string = "▸ " + string
   }
 
   return (
-    <li>
-      {canRun ? name : <s>{name}</s>} {string}
-    </li>
+    <div
+      style={{
+        color: handlerCanRun ? "#000" : "#777",
+        fontSize: 14,
+        paddingTop: 8,
+        paddingRight: 40
+      }}
+    >
+      {string}
+    </div>
   )
 }

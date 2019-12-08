@@ -2,9 +2,6 @@
 import React from "react"
 import { useMaho } from "react-use-maho"
 import { Visualizer } from "./components/visualizer"
-import { Checkbox } from "./components/checkbox"
-import { CheckboxGroup } from "./components/checkbox_group"
-import { RadioGroup } from "./components/radio_group"
 
 const ItemCounter = ({ min = 0, max = 10 }) => {
   const [state, send, { isIn, can }] = useMaho({
@@ -16,44 +13,32 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
       inactive: {
         on: {
           TURN_ON: {
-            to: "active",
-            if: "isOk"
+            to: "active"
           }
         }
       },
       active: {
-        initial: "ok",
-        states: {
-          ok: {},
-          notOkay: {}
-        },
         on: {
           TURN_OFF: {
             to: "inactive"
           },
-          ADD: [
-            {
-              do: "increment",
-              if: "belowMax"
-            },
-            {
-              do: "increment",
-              if: "belowMax"
-            }
-          ],
-          REMOVE: {
+          ADD_ITEM: {
+            do: "increment",
+            if: "belowMax"
+          },
+          REMOVE_ITEM: {
             do: "decrement",
             if: "aboveMin"
           },
-          ADJUST: {
+          ADD_ITEMS: {
             do: "adjustCount",
             if: "resultIsInRange"
           },
-          SET: {
+          SET_ITEMS: {
             do: "setCountToValue",
-            if: "valueIsInRange"
+            if: ["valueIsInRange", "valueIsNotCurrent"]
           },
-          CLEAR: {
+          CLEAR_ITEMS: {
             do: "setCountToMin",
             if: "aboveMin"
           }
@@ -68,19 +53,19 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
     actions: {
       increment: data => data.count++,
       decrement: data => data.count--,
-      setCountToValue: (data, value = 0) => (data.count = value),
+      setCountToValue: (data, value = 10) => (data.count = value),
       adjustCount: (data, delta = 5) => (data.count += delta),
       setCountToMin: data => (data.count = min)
     },
     conditions: {
-      isOk: () => true,
       aboveMin: data => data.count > min,
       belowMax: data => data.count < max,
-      valueIsInRange: (_, value = 0) => value >= min && value <= max,
+      valueIsInRange: (_, value = 10) => value >= min && value <= max,
       resultIsInRange: (data, delta = 5) => {
         const result = data.count + delta
         return result >= min && result <= max
-      }
+      },
+      valueIsNotCurrent: (data, value = 10) => data.count !== value
     },
     computed: {
       lastModified: () => new Date()
@@ -88,28 +73,18 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
   })
 
   return (
-    <div>
-      {/*<h1>Components</h1>
-      <h2>Checkbox</h2>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "auto 1fr",
+        gridAutoFlow: "column",
+        gap: 32
+      }}
+    >
       <div>
-        <Checkbox /> Label
+        <h1 style={{ width: "fit-content" }}>Visualizer</h1>
+        <Visualizer machine={state} />
       </div>
-      <div>
-        <Checkbox checked /> Label
-      </div>
-      <h2>Checkbox Group</h2>
-      <CheckboxGroup
-        checked={["sun", "stars"]}
-        options={["sun", "moon", "stars"]}
-      />
-      <Checkbox checked />
-      <h2>Radio Group</h2>
-      <RadioGroup />
-      <hr />
-      */}
-      <h1>Visualizer</h1>
-      <Visualizer machine={state} />
-      <hr />
       <div>
         <h2>Current State: {state.current.name}</h2>
         <h2>Count: {state.data.count}</h2>
@@ -125,25 +100,34 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
         <hr />
         {isIn("active") && (
           <>
-            <button disabled={!can("ADD")} onClick={() => send("ADD")}>
+            <button
+              disabled={!can("ADD_ITEM")}
+              onClick={() => send("ADD_ITEM")}
+            >
               Add Item
             </button>
-            <button disabled={!can("REMOVE")} onClick={() => send("REMOVE")}>
+            <button
+              disabled={!can("REMOVE_ITEM")}
+              onClick={() => send("REMOVE_ITEM")}
+            >
               Remove Item
             </button>
             <button
-              disabled={!can("ADJUST", 5)}
-              onClick={() => send("ADJUST", 5)}
+              disabled={!can("ADD_ITEMS", 5)}
+              onClick={() => send("ADD_ITEMS", 5)}
             >
               Add 5 Items
             </button>
             <button
-              disabled={!can("SET", max)}
-              onClick={() => send("SET", max)}
+              disabled={!can("SET_ITEMS", max)}
+              onClick={() => send("SET_ITEMS", max)}
             >
               Add Max
             </button>
-            <button disabled={!can("CLEAR")} onClick={() => send("CLEAR")}>
+            <button
+              disabled={!can("CLEAR_ITEMS")}
+              onClick={() => send("CLEAR_ITEMS")}
+            >
               Clear
             </button>{" "}
           </>
