@@ -17,7 +17,7 @@ type Condition<D> = (
 type SerializedConditions<D> = Record<string, Condition<D>>
 
 // Action
-type Action<D> = (data: Draft<D> | undefined, payload?: any) => any
+type Action<D> = (data: D | Draft<D> | undefined, payload?: any) => any
 
 type SerializedActions<D> = Record<string, Action<D>>
 
@@ -116,7 +116,7 @@ function getPath<D, SC, SA>(
   path: State<D, SC, SA>[] = []
 ): { state: State<D, SC, SA>; path: State<D, SC, SA>[] } {
   if (state.parent === undefined) {
-    return { state, path }
+    return { state, path: [...path, state] }
   }
 
   return getPath(state.parent, [...path, state])
@@ -194,6 +194,7 @@ function convertState<D, SC, SA>(
     parent,
     type: "leaf",
     on: state.on,
+    initial: state.initial,
     onEvent: state.onEvent,
     onEnter: state.onEnter,
     onExit: state.onExit
@@ -233,7 +234,7 @@ type Options<D, SC, SA, C> = {
   states?: StateTreeConfig<D, SC, SA>
   actions?: SA
   conditions?: SC
-  compute?: C
+  computed?: C
 }
 
 type MachineState<D, SC, SA, CR> = {
@@ -245,6 +246,7 @@ type MachineState<D, SC, SA, CR> = {
   actions?: SA
   conditions?: SC
   computed?: CR
+  path: State<D, SC, SA>[]
 }
 
 function init<D, SC, SA, C, CR>(
@@ -256,7 +258,7 @@ function init<D, SC, SA, C, CR>(
     onEvent,
     actions,
     conditions,
-    compute,
+    computed: computeds,
     states,
     initial
   } = options
@@ -276,14 +278,14 @@ function init<D, SC, SA, C, CR>(
     }
   }
 
-  if (compute !== undefined && data !== undefined) {
-    computed = Object.entries(compute).reduce((acc, [key, value]) => {
+  if (computeds !== undefined && data !== undefined) {
+    computed = Object.entries(computeds).reduce((acc, [key, value]) => {
       acc[key] = value({ ...data })
       return acc
     }, {} as CR)
   }
 
-  return {
+  const machineState = {
     data,
     on,
     onEvent,
@@ -291,8 +293,14 @@ function init<D, SC, SA, C, CR>(
     conditions,
     current,
     computed,
-    states: tree
+    states: tree,
+    initial,
+    path: current === undefined ? [] : getPath(current).path
   }
+
+  testMachine(machineState)
+
+  return machineState
 }
 /* -------------------------------------------------- */
 /*                        Hook                        */
@@ -310,6 +318,7 @@ export function useMaho<
   type IAction = Action<D>
   type ICondition = Condition<D>
   type IMachineState = MachineState<D, SC, SA, CR>
+  type DMachineState = Draft<IMachineState>
   type IEventsInPath = [string, IEvent | IEvent[]][]
 
   const [state, update] = useImmer<IMachineState>(init(options))
@@ -326,7 +335,7 @@ export function useMaho<
     return getPath(state.parent, [...path, state])
   }
 
-  function getEventsInPath(state: IMachineState | Draft<IMachineState>) {
+  function getEventsInPath(state: IMachineState | DMachineState) {
     const { current, on } = state
 
     let eventHandlers: IEventsInPath = []
@@ -356,7 +365,7 @@ export function useMaho<
   }
 
   function isEventAvailable(
-    state: IMachineState | Draft<IMachineState>,
+    state: IMachineState | DMachineState,
     group: (IEvent | IEvent[])[],
     payload: any
   ) {
@@ -393,64 +402,20 @@ export function useMaho<
     })
   }
 
-  function getAvailableEventsInPath(
-    state: IMachineState | Draft<IMachineState>,
-    events: IEventsInPath
-  ) {
-    return events.reduce<{ [key: string]: boolean }>((acc, [key, value]) => {
-      const events = Array.isArray(value) ? value : Array(value)
-
-      acc[key] = events.some(event => {
-        let conditions = event.if
-
-        if (conditions === undefined) {
-          return true
-        }
-
-        if (!Array.isArray(conditions)) {
-          conditions = Array(conditions)
-        }
-
-        return conditions.every(condition => {
-          let cond: ICondition | undefined = undefined
-
-          if (typeof condition === "string") {
-            if (state.conditions !== undefined) {
-              cond = state.conditions[condition]
-            } else {
-              console.error("No serialized conditions!")
-              return false
-            }
-          } else if (typeof condition === "function") {
-            cond = condition
-          }
-
-          return cond === undefined ? true : cond(state.data)
-        })
-      })
-
-      return acc
-    }, {})
-  }
-
   const eventsInPath = React.useMemo(() => {
     return getEventsInPath(state)
   }, [state])
-
-  const availableEventsInPath = React.useMemo(() => {
-    return getAvailableEventsInPath(state, eventsInPath)
-  }, [state, eventsInPath])
 
   /* -------------------------------------------------- */
   /*                   Private Helpers                  */
   /* -------------------------------------------------- */
 
   function searchStateForTarget(
-    states: IState[][] | undefined,
+    m: IMachineState | DMachineState,
     target: string
   ) {
-    if (states !== undefined) {
-      for (let branch of states) {
+    if (m.states !== undefined) {
+      for (let branch of m.states) {
         for (let state of branch) {
           if (state.name === target) {
             return state
@@ -460,6 +425,227 @@ export function useMaho<
     }
 
     return
+  }
+
+  // Condition Functions
+
+  function handleCondition(
+    m: IMachineState | DMachineState,
+    condition: string | ICondition,
+    payload?: any
+  ) {
+    if (typeof condition === "string" && m.conditions === undefined) {
+      console.error(
+        `You defined a condition, ${condition}, but your machine has no serialized conditions. This will cause an error! Did you forget to define a conditions object?`
+      )
+    }
+
+    let cond =
+      typeof condition === "string" && m.conditions !== undefined
+        ? m.conditions[condition]
+        : (condition as ICondition)
+
+    return cond(m.data ? m.data : undefined, payload)
+  }
+
+  function testEventConditions(
+    m: IMachineState | DMachineState,
+    eventHandler: IEvent,
+    payload?: any
+  ) {
+    if (eventHandler.if !== undefined) {
+      let eventConditions = Array.isArray(eventHandler.if)
+        ? eventHandler.if
+        : [eventHandler.if]
+
+      return eventConditions.every(cond => handleCondition(m, cond, payload))
+    }
+
+    return true
+  }
+
+  // Action Functions
+
+  function handleAction(
+    m: IMachineState | DMachineState,
+    action: string | IAction,
+    payload?: any
+  ) {
+    let rAction =
+      typeof action === "string" && m.actions !== undefined
+        ? m.actions[action]
+        : (action as Action<D>)
+
+    rAction(m.data, payload)
+  }
+
+  function handleEventActions(
+    m: IMachineState | DMachineState,
+    eventHandler: IEvent,
+    payload?: any
+  ) {
+    if (eventHandler.do !== undefined) {
+      let eventActions = Array.isArray(eventHandler.do)
+        ? eventHandler.do
+        : [eventHandler.do]
+
+      for (let action of eventActions) {
+        handleAction(m, action, payload)
+      }
+    }
+  }
+
+  // Transition Functions
+
+  function findTarget(
+    m: IMachineState | DMachineState,
+    state: IState,
+    target: string
+  ): IState | undefined {
+    if (state.name === target) {
+      return state
+    }
+
+    // If state has states, check those for the target
+    const stateInBranch = searchStateForTarget(m, target)
+    if (stateInBranch !== undefined) return stateInBranch
+
+    // If no state found, and state has a parent,
+    // evaluate the parent / parent's states
+    if (state.parent !== undefined) {
+      return findTarget(m, state.parent, target)
+    }
+
+    // If no parent, check the root states tree
+    return searchStateForTarget(m, target)
+  }
+
+  function sinkIntoInitialState(
+    m: IMachineState | DMachineState,
+    state: IState,
+    payload: any
+  ): IState {
+    if (state.onEnter !== undefined) {
+      handleEventHandler(m, state.onEnter, payload)
+    }
+
+    if (state.states !== undefined && state.initial !== undefined) {
+      const targetBranch = state.states.find(branch =>
+        branch.find(s => s.name === state.initial)
+      )
+      if (targetBranch === undefined) {
+        console.error("Could not find a branch for the initial state!")
+      } else {
+        const targetState = targetBranch.find(s => s.name === state.initial)
+        if (targetState === undefined) {
+          console.error("Could not find a state for the initial state!")
+        } else {
+          return sinkIntoInitialState(m, targetState, payload)
+        }
+      }
+    }
+
+    return state
+  }
+
+  function handleTransition(
+    m: IMachineState | DMachineState,
+    target: IState,
+    payload?: any
+  ) {
+    if (m.current !== undefined && m.current.onExit !== undefined) {
+      handleEventHandler(m, m.current.onExit, payload)
+    }
+
+    return sinkIntoInitialState(m, target, payload)
+  }
+
+  function handleEventTransitions(
+    m: IMachineState | DMachineState,
+    eventHandler: IEvent,
+    payload?: any
+  ) {
+    if (eventHandler.to !== undefined && m.current !== undefined) {
+      let targetState = findTarget(m, m.current, eventHandler.to)
+      if (targetState !== undefined) {
+        return handleTransition(m, targetState, payload)
+      }
+    }
+    return
+  }
+
+  function handleEventHandler(
+    m: IMachineState | DMachineState,
+    eventHandler: IEvent,
+    payload?: any
+  ) {
+    if (testEventConditions(m, eventHandler, payload)) {
+      handleEventActions(m, eventHandler, payload)
+      return handleEventTransitions(m, eventHandler, payload)
+    }
+
+    return
+  }
+
+  function handleAutoEventHandler(
+    m: IMachineState | DMachineState,
+    autoEvent: IEvent | undefined,
+    payload?: any
+  ) {
+    if (autoEvent !== undefined) {
+      const nextState = handleEventHandler(m, autoEvent, payload)
+      if (nextState !== undefined) {
+        m.current = nextState as any
+        return true
+      }
+    }
+    return false
+  }
+
+  function collectEventHandlers(
+    m: IMachineState | DMachineState,
+    event: string
+  ) {
+    let path = m.current === undefined ? [] : getPath(m.current).path
+
+    const eventHandlers = path.reduce<Event<D, SC, SA>[]>((acc, state) => {
+      if (state.on !== undefined) {
+        const handler = state.on[event]
+        pushContents(handler, acc)
+      }
+      return acc
+    }, [])
+
+    // If we have root-level event handlers, look there
+    if (m.on !== undefined) {
+      const rootHandler = m.on[event]
+      pushContents(rootHandler, eventHandlers)
+    }
+
+    return eventHandlers
+  }
+
+  // Computed values
+
+  function updateComputedValues(
+    m: IMachineState | DMachineState,
+    computed: C | undefined
+  ) {
+    if (
+      computed !== undefined &&
+      m.computed !== undefined &&
+      m.data !== undefined
+    ) {
+      for (let key in computed as any) {
+        m.computed[key] = computed[key](m.data as any)
+      }
+    }
+  }
+
+  // Path
+
+  function getCurrentPath(m: IMachineState | DMachineState) {
+    return m.current === undefined ? [] : getPath(m.current).path
   }
 
   /* -------------------------------------------------- */
@@ -505,194 +691,79 @@ export function useMaho<
   )
 
   /* -------------------------------------------------- */
+  /*                         Set                        */
+  /* -------------------------------------------------- */
+
+  // Force a change to the machine's state
+
+  const set = React.useCallback(
+    function set(target: string) {
+      if (state.states === undefined) {
+        // No states in this machine
+        return
+      }
+
+      const next = getStateByName(state.states, target)
+
+      if (next === undefined) {
+        // No state with that name
+        return
+      }
+
+      update(draft => {})
+    },
+    [state, update]
+  )
+
+  /* -------------------------------------------------- */
   /*                        Send                        */
   /* -------------------------------------------------- */
+
+  // Submit an event to the machine
 
   const send = React.useCallback(
     function send(event: string, payload?: any) {
       update((draft: Draft<IMachineState>) => {
-        let { compute } = options
-        let { current, states, data, on, onEvent, actions, conditions } = draft
-        let path = current === undefined ? [] : getPath(current).path
+        let path = getCurrentPath(draft)
 
         /* ---------------- Get Event Handler(s) --------------- */
 
         // Get event handler from current state path
-        const eventHandlers = path.reduce<Event<D, SC, SA>[]>((acc, state) => {
-          if (state.on !== undefined) {
-            const handler = state.on[event]
-            pushContents(handler, acc)
-          }
-          return acc
-        }, [])
-
-        // If we have root-level event handlers, look there
-        if (on !== undefined) {
-          const rootHandler = on[event]
-          pushContents(rootHandler, eventHandlers)
-        }
+        const eventHandlers = collectEventHandlers(draft, event)
 
         // If we didn't find any events, bail
         if (eventHandlers.length === 0) {
           return
         }
 
-        /* ------------- Evaluate Event Handler ------------- */
-        // These are dirty functions (for now)
-
-        // Condition Functions
-
-        function handleCondition(condition: string | ICondition) {
-          let cond =
-            typeof condition === "string" && conditions !== undefined
-              ? conditions[condition]
-              : (condition as ICondition)
-
-          return cond(data ? { ...data } : undefined, payload)
-        }
-
-        function testEventConditions(eventHandler: IEvent) {
-          if (eventHandler.if !== undefined) {
-            let eventConditions = Array.isArray(eventHandler.if)
-              ? eventHandler.if
-              : [eventHandler.if]
-
-            return eventConditions.every(cond => handleCondition(cond))
-          }
-
-          return true
-        }
-
-        // Action Functions
-
-        function handleAction(action: string | IAction) {
-          let rAction =
-            typeof action === "string" && actions !== undefined
-              ? actions[action]
-              : (action as Action<D>)
-
-          rAction(data, payload)
-        }
-
-        function handleEventActions(eventHandler: IEvent) {
-          if (eventHandler.do !== undefined) {
-            let eventActions = Array.isArray(eventHandler.do)
-              ? eventHandler.do
-              : [eventHandler.do]
-
-            for (let action of eventActions) {
-              handleAction(action)
-            }
-          }
-        }
-
-        // Transition Functions
-
-        function findTarget(state: IState, target: string): IState | undefined {
-          if (state.name === target) {
-            return current
-          }
-
-          // If state has states, check those for the target
-          const stateInBranch = searchStateForTarget(state.states, target)
-          if (stateInBranch !== undefined) return stateInBranch
-
-          // If no state found, and state has a parent,
-          // evaluate the parent / parent's states
-          if (state.parent !== undefined) {
-            return findTarget(state.parent, target)
-          }
-
-          // If no parent, check the root states tree
-          return searchStateForTarget(states, target)
-        }
-
-        function sinkIntoInitialState(state: IState): IState {
-          if (state.onEnter !== undefined) {
-            handleEventHandler(state.onEnter)
-          }
-
-          if (state.states !== undefined && state.initial !== undefined) {
-            return sinkIntoInitialState(state.states[state.initial])
-          }
-
-          return state
-        }
-
-        function handleTransition(current: IState, target: IState) {
-          if (current.onExit !== undefined) {
-            handleEventHandler(current.onExit)
-          }
-
-          return sinkIntoInitialState(target)
-        }
-
-        function handleEventTransitions(eventHandler: IEvent) {
-          if (eventHandler.to !== undefined && current !== undefined) {
-            let targetState = findTarget(current, eventHandler.to)
-            if (targetState !== undefined) {
-              return handleTransition(current, targetState)
-            }
-          }
-          return
-        }
-
-        function handleEventHandler(eventHandler: IEvent) {
-          if (testEventConditions(eventHandler)) {
-            handleEventActions(eventHandler)
-            return handleEventTransitions(eventHandler)
-          }
-
-          return
-        }
-
-        // If an event handler results in a new state,
-        // set that state and break -- events following
-        // a transition are not allowed.
-
         // Run event handlers
-
-        let didChange = false
-
         for (let eventHandler of eventHandlers) {
-          const nextState = handleEventHandler(eventHandler)
+          // Mutates!
+          const nextState = handleEventHandler(draft, eventHandler, payload)
           if (nextState !== undefined) {
             draft.current = nextState as any
-            didChange = true
             break
           }
         }
 
         // If we transitioned, update the path
-        if (didChange) {
-          path = draft.current === undefined ? [] : getPath(draft.current).path
-        }
+        path = getCurrentPath(draft)
 
         // Run onEvents based on path
         for (let state of path) {
-          if (state.onEvent !== undefined) {
-            const nextState = handleEventHandler(state.onEvent)
-            if (nextState !== undefined) {
-              draft.current = nextState as any
-              break
-            }
+          // Mutates!
+          if (handleAutoEventHandler(draft, state.onEvent, payload)) {
+            break
           }
         }
 
-        // Run root-level onEvent
-        if (onEvent !== undefined) {
-          const nextState = handleEventHandler(onEvent)
-          if (nextState !== undefined) {
-            draft.current = nextState as any
-          }
-        }
+        // Run root-level onEvent (Mutates!)
+        handleAutoEventHandler(draft, draft.onEvent, payload)
 
         // Update computed Values
-        if (compute !== undefined && data !== undefined) {
-          for (let key in draft.computed) {
-            draft.computed[key] = compute[key](data)
-          }
-        }
+        updateComputedValues(draft, options.computed)
+
+        draft.path = getCurrentPath(draft) as any
       })
     },
     [update]
@@ -702,7 +773,7 @@ export function useMaho<
 }
 
 /* -------------------------------------------------- */
-/*                       Helpers                      */
+/*               Generic Helpers                      */
 /* -------------------------------------------------- */
 
 const pushContents = <D>(source: D | D[] | undefined, target: D[]) => {
@@ -714,5 +785,75 @@ const pushContents = <D>(source: D | D[] | undefined, target: D[]) => {
     target.push(...source)
   } else {
     target.push(source)
+  }
+}
+
+/* -------------------------------------------------- */
+/*                       Testing                      */
+/* -------------------------------------------------- */
+
+function testMachine(m: MachineState<any, any, any, any>) {
+  function testEvents(
+    on: Record<string, Event<any, any, any> | Event<any, any, any>[]>
+  ) {
+    for (let key in on) {
+      let e = on[key]
+      let eventHandlers = Array.isArray(e) ? e : Array(e)
+
+      for (let eventHandler of eventHandlers) {
+        let { if: cond, do: action } = eventHandler
+        if (cond !== undefined) {
+          cond = Array.isArray(cond) ? cond : Array(cond)
+          for (let c of cond) {
+            if (typeof c === "string") {
+              if (m.conditions === undefined) {
+                console.error(
+                  `${key}: Warning! You've included a serialized condition named "${c}" but your machine has no serialized conditions. This will cause an error! Did you forget to define a conditions object?`
+                )
+              } else {
+                if (m.conditions[c] === undefined) {
+                  console.error(
+                    `${key}: Warning! You've included a serialized condition named "${c}" but your machine's conditions do not include this condition. This will cause an error! Did you forget to add a condition named ${c}?`
+                  )
+                }
+              }
+            }
+          }
+        }
+
+        if (action !== undefined) {
+          action = Array.isArray(action) ? action : Array(action)
+          for (let a of action) {
+            if (typeof a === "string") {
+              if (m.actions === undefined) {
+                console.error(
+                  `${key}: Warning! You've included a serialized action named "${a}" but your machine has no serialized actions. This will cause an error! Did you forget to define a actions object?`
+                )
+              } else {
+                if (m.actions[a] === undefined) {
+                  console.error(
+                    `${key}: Warning! You've included a serialized action named "${a}" but your machine's actions do not include this action. This will cause an error! Did you forget to add an action named ${a}?`
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (m.states !== undefined) {
+    for (let state of m.states) {
+      for (let branch of state) {
+        if (branch.on !== undefined) {
+          testEvents(branch.on)
+        }
+      }
+    }
+  }
+
+  if (m.on !== undefined) {
+    testEvents(m.on)
   }
 }

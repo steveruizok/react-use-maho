@@ -35,12 +35,10 @@ const App = () => {
       decrementCount: data => data.count--,
       setCount: (data, payload) => (data.count = payload)
     },
-    compute: {
+    computed: {
       halfCount: data => data.count / 2
     }
   })
-
-  console.log(state)
 
   return (
     <div>
