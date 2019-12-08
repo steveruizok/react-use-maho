@@ -16,7 +16,8 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
       inactive: {
         on: {
           TURN_ON: {
-            to: "active"
+            to: "active",
+            if: "isOk"
           }
         }
       },
@@ -30,10 +31,16 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
           TURN_OFF: {
             to: "inactive"
           },
-          ADD: {
-            do: "increment",
-            if: "belowMax"
-          },
+          ADD: [
+            {
+              do: "increment",
+              if: "belowMax"
+            },
+            {
+              do: "increment",
+              if: "belowMax"
+            }
+          ],
           REMOVE: {
             do: "decrement",
             if: "aboveMin"
@@ -66,6 +73,7 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
       setCountToMin: data => (data.count = min)
     },
     conditions: {
+      isOk: () => true,
       aboveMin: data => data.count > min,
       belowMax: data => data.count < max,
       valueIsInRange: (_, value = 0) => value >= min && value <= max,

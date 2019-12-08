@@ -53,7 +53,7 @@ function State({ state, isInitial }) {
         {isInitial ? <b>{state.name}</b> : state.name}
       </span>
       <ul>
-        {state.on !== undefined && <EventHandlers handlers={state.on} />}{" "}
+        {state.on !== undefined && <Event handlers={state.on} />}{" "}
         {state.states !== undefined && (
           <States initial={state.initial} states={state.states} />
         )}
@@ -62,7 +62,7 @@ function State({ state, isInitial }) {
   )
 }
 
-function EventHandlers({ handlers }) {
+function Event({ handlers }) {
   return (
     <li>
       Events
@@ -75,11 +75,18 @@ function EventHandlers({ handlers }) {
   )
 }
 
+function EventHandlers({ handlers }) {
+  console.log(handlers)
+  return <div />
+}
+
 function EventHandler({ name, event }) {
   const machine = React.useContext(MachineContext)
   let conditions = []
   let actions = []
   let canRun = true
+
+  let string = ""
 
   // Conditions
 
@@ -97,7 +104,8 @@ function EventHandler({ name, event }) {
           canRun = false
         }
       }
-      conditions.push(typeof cond === "string" ? cond : "{...}")
+      const str = typeof cond === "string" ? cond : "{...}"
+      conditions.push(canRun ? str : `-${str}-`)
     }
   }
 
@@ -127,10 +135,19 @@ function EventHandler({ name, event }) {
     .filter(v => v)
     .join(" ")
 
+  string = [transitionString, actionsString].filter(v => v).join(", ")
+
+  if (conditions.length > 0) {
+    string = `if ( ${conditions.join(", ")} ) { ${string} }`
+  }
+
+  if (string.length > 0) {
+    string = " = " + string
+  }
+
   return (
     <li>
-      {canRun ? name : <s>{name}</s>}{" "}
-      {strings.length > 0 ? " : " + strings : ""}
+      {canRun ? name : <s>{name}</s>} {string}
     </li>
   )
 }
