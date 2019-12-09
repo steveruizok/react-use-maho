@@ -1,7 +1,7 @@
 // @ts-check
 import React from "react"
 import { useMaho } from "react-use-maho"
-import { Visualizer } from "./components/visualizer"
+import { Visualizer } from "./components/Visualizer/"
 
 const ItemCounter = ({ min = 0, max = 10 }) => {
   const [state, send, { isIn, can }] = useMaho({
@@ -14,10 +14,15 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
         on: {
           TURN_ON: [
             {
-              to: "active",
-              wait: 0.5
+              to: "loading"
             }
           ]
+        }
+      },
+      loading: {
+        onEnter: {
+          to: "active",
+          wait: 0.5
         }
       },
       active: {
@@ -25,9 +30,6 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
         states: {
           ok: {
             initial: "red",
-            onEnter: {
-              to: "notOk"
-            },
             states: {
               red: {},
               green: {}
@@ -111,7 +113,7 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
     >
       <div>
         <h1 style={{ width: "fit-content" }}>Visualizer</h1>
-        <Visualizer machine={state} />
+        <Visualizer machine={state} send={send} />
       </div>
       <div>
         <h2>Current State: {state.current.name}</h2>

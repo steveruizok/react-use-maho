@@ -598,6 +598,12 @@ export function useMaho<
       if (Array.isArray(state.onEnter)) {
         for (let e of state.onEnter) {
           if (e.wait !== undefined) {
+            handleAsyncEventHandler(
+              state.name,
+              "onEnter",
+              e.wait * 2000,
+              payload
+            )
           } else {
             let next = handleEventHandler(m, e, payload)
             if (next !== undefined) return next
@@ -605,6 +611,12 @@ export function useMaho<
         }
       } else {
         if (state.onEnter.wait !== undefined) {
+          handleAsyncEventHandler(
+            state.name,
+            "onEnter",
+            state.onEnter.wait * 2000,
+            payload
+          )
         } else {
           let next = handleEventHandler(m, state.onEnter, payload)
           if (next !== undefined) return next

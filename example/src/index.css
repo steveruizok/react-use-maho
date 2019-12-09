@@ -1,11 +1,26 @@
+@import url("https://fonts.googleapis.com/css?family=Fira+Code:500,700&display=swap");
 body,
 * {
-  font-family: monospace;
-  font-size: 16px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+body {
+  background: #252525;
+  color: #fff;
+  font-family: "Fira Code", monospace;
+  font-size: 14px;
 }
 
 button {
-  border: 1px solid #000;
+  border: 1px solid #eee;
   background: none;
   margin: 4px 8px 4px 0px;
+  color: #eee;
+  font-family: "Fira Code", monospace;
+  font-size: 14px;
+}
+
+button:disabled {
+  opacity: 0.5;
 }
