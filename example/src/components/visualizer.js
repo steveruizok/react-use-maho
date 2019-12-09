@@ -83,12 +83,9 @@ function Label({ children }) {
     <div
       style={{
         position: "absolute",
-        top: 8,
-        right: 4,
-        fontSize: 12,
-        padding: "2px 4px",
-        border: "1px solid #ccc",
-        borderRadius: 4
+        top: 11,
+        right: 8,
+        fontSize: 12
       }}
     >
       {children}
@@ -125,14 +122,17 @@ function State({ state, isInitial }) {
         overflow: "hidden",
         width: "fit-content",
         backgroundColor: inPath ? "#fffddf" : "#fff",
-        boxShadow: "1px 1px 0px #333"
+        boxShadow: "1px 1px 0px #333",
+        position: "relative"
       }}
     >
+      <Label>State</Label>
       <div
         style={{
           backgroundColor: inPath ? "#ffd84c" : "#eee",
           borderBottom: "1px solid #000",
-          padding: 8
+          padding: 8,
+          paddingRight: 60
         }}
       >
         ▪︎ {isInitial ? <b>{state.name}</b> : state.name}
@@ -169,11 +169,9 @@ function EventHandlers({ name, inPath, handlers }) {
     let { if: conds } = handler
     if (conds !== undefined) {
       conds = Array.isArray(conds) ? conds : Array(conds)
-      console.log(conds)
       return conds.every(cond => {
         if (typeof cond === "string") {
-          const c = machine.conditions[cond]
-          return c(machine.data)
+          return machine.conditions[cond](machine.data)
         } else {
           return cond(machine.data)
         }
@@ -184,7 +182,9 @@ function EventHandlers({ name, inPath, handlers }) {
   })
 
   return (
-    <div style={{ borderBottom: "1px solid #000", padding: 12 }}>
+    <div
+      style={{ borderBottom: "2px dotted #ddd", padding: 12, paddingRight: 60 }}
+    >
       <span
         style={{
           backgroundColor: inPath && canRun ? "#99dd66" : "#efefef",
@@ -198,13 +198,13 @@ function EventHandlers({ name, inPath, handlers }) {
         {name}
       </span>
       {handlers.map((h, i) => (
-        <EventHandler key={i} inPath={inPath} canRun={canRun} event={h} />
+        <EventHandler key={i} event={h} />
       ))}
     </div>
   )
 }
 
-function EventHandler({ inPath, canRun, event }) {
+function EventHandler({ event }) {
   const machine = React.useContext(MachineContext)
   let conditions = []
   let actions = []
@@ -249,23 +249,30 @@ function EventHandler({ inPath, canRun, event }) {
   let { to: transition } = event
 
   const transitionString =
-    transition === undefined ? undefined : `to -> ${transition}`
+    transition === undefined ? undefined : `to → ${transition}`
 
   string = [transitionString, actionsString].filter(v => v).join(", ")
 
+  // Delays
+
+  let { wait: delay } = event
+
   if (conditions.length > 0) {
-    string = `▸ if ( ${conditions.join(", ")} ) { ${string} }`
-  } else {
-    string = "▸ " + string
+    string = `if ( ${conditions.join(", ")} ) { ${string} }`
   }
+
+  if (delay !== undefined) {
+    string = `wait ( ${delay} ) { ${string} }`
+  }
+
+  string = "▸ " + string
 
   return (
     <div
       style={{
         color: handlerCanRun ? "#000" : "#777",
         fontSize: 14,
-        paddingTop: 8,
-        paddingRight: 40
+        paddingTop: 8
       }}
     >
       {string}

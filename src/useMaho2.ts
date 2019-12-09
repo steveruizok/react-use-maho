@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Draft } from "immer"
 import { useImmer } from "use-immer"
+import { uniqueId } from "lodash-es"
 
 /* -------------------------------------------------- */
 /*                        Types                       */
@@ -26,23 +27,38 @@ type SerializedActions<D> = Record<string, Action<D>>
 type Transition = string | Draft<string>
 
 // AutoEvent
-type AutoEvent<D, SC, SA> = {
+interface AutoEvent<D, SC, SA> {
   if?:
     | ((keyof SC & string) | Condition<D>)
     | ((keyof SC & string) | Condition<D>)[]
   do?: ((keyof SA & string) | Action<D>) | ((keyof SA & string) | Action<D>)[]
+  wait?: number
 }
 
 // Event
-type Event<D, SC, SA> = {
-  if?:
-    | ((keyof SC & string) | Condition<D>)
-    | ((keyof SC & string) | Condition<D>)[]
-  do?: ((keyof SA & string) | Action<D>) | ((keyof SA & string) | Action<D>)[]
+interface Event<D, SC, SA> extends AutoEvent<D, SC, SA> {
   to?: Transition
 }
 
+// Events
 type Events<D, SC, SA> = Record<string, Event<D, SC, SA> | Event<D, SC, SA>[]>
+
+// Keyed
+
+interface KEvent<D, SC, SA> extends Event<D, SC, SA> {
+  id: string
+  state: string
+}
+
+interface KAutoEvent<D, SC, SA> extends AutoEvent<D, SC, SA> {
+  id: string
+  state: string
+}
+
+type KEvents<D, SC, SA> = Record<
+  string,
+  KEvent<D, SC, SA> | KEvent<D, SC, SA>[]
+>
 
 /* ----------------- Computed Values ---------------- */
 
@@ -62,10 +78,10 @@ type State<D, SC, SA> = {
   parent?: State<D, SC, SA>
   initial?: string
   states?: State<D, SC, SA>[][]
-  on?: Events<D, SC, SA>
-  onEvent?: Event<D, SC, SA>
-  onEnter?: AutoEvent<D, SC, SA>
-  onExit?: AutoEvent<D, SC, SA>
+  on?: KEvents<D, SC, SA>
+  onEvent?: KEvent<D, SC, SA> | KEvent<D, SC, SA>[]
+  onEnter?: KEvent<D, SC, SA> | KEvent<D, SC, SA>[]
+  onExit?: KEvent<D, SC, SA> | KEvent<D, SC, SA>[]
 }
 
 type StateConfig<D, SC, SA> = {
@@ -73,7 +89,7 @@ type StateConfig<D, SC, SA> = {
   initial?: string
   states?: StateBranchConfig<D, SC, SA>
   onEvent?: Event<D, SC, SA>
-  onEnter?: AutoEvent<D, SC, SA>
+  onEnter?: Event<D, SC, SA>
   onExit?: AutoEvent<D, SC, SA>
 }
 
@@ -138,9 +154,13 @@ function getStateUp<D, SC, SA>(
  * @param name The path name to search, either a single state's name (e.g. "active") or a dot-separated path (e.g. "active.running.warm").
  */
 function getStateByName<D, SC, SA>(
-  tree: State<D, SC, SA>[][],
+  tree: State<D, SC, SA>[][] | undefined,
   name: string
 ): State<D, SC, SA> | undefined {
+  if (tree === undefined) {
+    return
+  }
+
   let targets = name.includes(".") ? name.split(".") : [name]
   let first = targets.shift()
 
@@ -184,6 +204,54 @@ function getStateByName<D, SC, SA>(
 
 /* ---------------- State Conversions --------------- */
 
+function convertAutoEvent<D, SC, SA>(
+  event: Event<D, SC, SA> | Event<D, SC, SA>[] | undefined,
+  id: string,
+  stateName: string
+) {
+  if (event === undefined) {
+    return
+  }
+
+  if (Array.isArray(event)) {
+    for (let e of event) {
+      let o = e as KEvent<D, SC, SA>
+      o.id = id
+      o.state = stateName
+    }
+  } else {
+    let o = event as KEvent<D, SC, SA>
+    o.id = id
+    o.state = stateName
+  }
+
+  return event as KEvent<D, SC, SA> | KEvent<D, SC, SA>[]
+}
+
+function convertEvents<D, SC, SA>(
+  events: Record<string, Event<D, SC, SA> | Event<D, SC, SA>[]> | undefined,
+  stateName: string
+) {
+  for (let key in events) {
+    let event = events[key]
+    if (Array.isArray(event)) {
+      for (let e of event) {
+        let o = e as KEvent<D, SC, SA>
+        o.id = uniqueId()
+        o.state = stateName
+      }
+    } else {
+      let o = event as KEvent<D, SC, SA>
+      o.id = uniqueId()
+      o.state = stateName
+    }
+  }
+
+  return events as
+    | Record<string, KEvent<D, SC, SA> | KEvent<D, SC, SA>[]>
+    | undefined
+}
+
 function convertState<D, SC, SA>(
   name: string,
   state: StateConfig<D, SC, SA>,
@@ -193,11 +261,11 @@ function convertState<D, SC, SA>(
     name,
     parent,
     type: "leaf",
-    on: state.on,
+    on: convertEvents(state.on, name),
     initial: state.initial,
-    onEvent: state.onEvent,
-    onEnter: state.onEnter,
-    onExit: state.onExit
+    onEvent: convertAutoEvent(state.onEvent, "onEvent", name),
+    onEnter: convertAutoEvent(state.onEnter, "onEnter", name),
+    onExit: convertAutoEvent(state.onExit, "onExit", name)
   }
 
   let s = state as any
@@ -239,8 +307,8 @@ type Options<D, SC, SA, C> = {
 
 type MachineState<D, SC, SA, CR> = {
   data?: D
-  on?: Events<D, SC, SA>
-  onEvent?: Event<D, SC, SA>
+  on?: KEvents<D, SC, SA>
+  onEvent?: KAutoEvent<D, SC, SA> | KAutoEvent<D, SC, SA>[]
   current?: State<D, SC, SA>
   states?: State<D, SC, SA>[][]
   actions?: SA
@@ -287,8 +355,8 @@ function init<D, SC, SA, C, CR>(
 
   const machineState = {
     data,
-    on,
-    onEvent,
+    on: convertEvents(on, "root"),
+    onEvent: convertAutoEvent(onEvent, "onEvent", "root"),
     actions,
     conditions,
     current,
@@ -314,7 +382,7 @@ export function useMaho<
   CR = ComputedReturns<Draft<D>, C>
 >(options: Options<D, SC, SA, C>) {
   type IState = State<D, SC, SA>
-  type IEvent = Event<D, SC, SA>
+  type IEvent = KEvent<D, SC, SA>
   type IAction = Action<D>
   type ICondition = Condition<D>
   type IMachineState = MachineState<D, SC, SA, CR>
@@ -411,11 +479,11 @@ export function useMaho<
   /* -------------------------------------------------- */
 
   function searchStateForTarget(
-    m: IMachineState | DMachineState,
+    states: State<D, SC, SA>[][] | undefined,
     target: string
   ) {
-    if (m.states !== undefined) {
-      for (let branch of m.states) {
+    if (states !== undefined) {
+      for (let branch of states) {
         for (let state of branch) {
           if (state.name === target) {
             return state
@@ -507,7 +575,7 @@ export function useMaho<
     }
 
     // If state has states, check those for the target
-    const stateInBranch = searchStateForTarget(m, target)
+    const stateInBranch = searchStateForTarget(state.states, target)
     if (stateInBranch !== undefined) return stateInBranch
 
     // If no state found, and state has a parent,
@@ -517,7 +585,7 @@ export function useMaho<
     }
 
     // If no parent, check the root states tree
-    return searchStateForTarget(m, target)
+    return searchStateForTarget(m.states, target)
   }
 
   function sinkIntoInitialState(
@@ -525,8 +593,23 @@ export function useMaho<
     state: IState,
     payload: any
   ): IState {
+    m.current = state
     if (state.onEnter !== undefined) {
-      handleEventHandler(m, state.onEnter, payload)
+      if (Array.isArray(state.onEnter)) {
+        for (let e of state.onEnter) {
+          if (e.wait !== undefined) {
+          } else {
+            let next = handleEventHandler(m, e, payload)
+            if (next !== undefined) return next
+          }
+        }
+      } else {
+        if (state.onEnter.wait !== undefined) {
+        } else {
+          let next = handleEventHandler(m, state.onEnter, payload)
+          if (next !== undefined) return next
+        }
+      }
     }
 
     if (state.states !== undefined && state.initial !== undefined) {
@@ -554,7 +637,13 @@ export function useMaho<
     payload?: any
   ) {
     if (m.current !== undefined && m.current.onExit !== undefined) {
-      handleEventHandler(m, m.current.onExit, payload)
+      if (Array.isArray(m.current.onExit)) {
+        for (let e of m.current.onExit) {
+          handleEventHandler(m, e, payload)
+        }
+      } else {
+        handleEventHandler(m, m.current.onExit, payload)
+      }
     }
 
     return sinkIntoInitialState(m, target, payload)
@@ -567,12 +656,15 @@ export function useMaho<
   ) {
     if (eventHandler.to !== undefined && m.current !== undefined) {
       let targetState = findTarget(m, m.current, eventHandler.to)
+
       if (targetState !== undefined) {
         return handleTransition(m, targetState, payload)
       }
     }
     return
   }
+
+  // Handlers
 
   function handleEventHandler(
     m: IMachineState | DMachineState,
@@ -589,17 +681,76 @@ export function useMaho<
 
   function handleAutoEventHandler(
     m: IMachineState | DMachineState,
-    autoEvent: IEvent | undefined,
+    eventHandler: IEvent | undefined,
     payload?: any
   ) {
-    if (autoEvent !== undefined) {
-      const nextState = handleEventHandler(m, autoEvent, payload)
+    if (eventHandler !== undefined) {
+      const nextState = handleEventHandler(m, eventHandler, payload)
       if (nextState !== undefined) {
         m.current = nextState as any
         return true
       }
     }
+
     return false
+  }
+
+  async function handleAsyncEventHandler(
+    stateName: string,
+    id: string,
+    delay: number,
+    payload: any
+  ) {
+    await new Promise(resolve => setTimeout(resolve, delay))
+
+    update(draft => {
+      if (draft.states === undefined) {
+        return
+      }
+
+      let event: any
+      let state =
+        stateName === "root"
+          ? draft
+          : getStateByName(draft.states as any, stateName)
+
+      if (state === undefined) {
+        return
+      }
+
+      if (id === "onEnter" && (state as any).onEnter !== undefined) {
+        event = (state as any).onEnter
+      } else if (id === "onExit" && (state as any).onEnter !== undefined) {
+        event = (state as any).onExit
+      } else if (state.on !== undefined) {
+        for (let key in state.on) {
+          let handlers = state.on[key]
+          if (Array.isArray(handlers)) {
+            let e = handlers.find(handler => handler.id === id)
+            if (e !== undefined) {
+              event = e
+              break
+            }
+          } else {
+            if (handlers.id === id) {
+              event = handlers
+              break
+            }
+          }
+        }
+      }
+
+      if (event === undefined) {
+        return
+      }
+
+      const nextState = handleEventHandler(draft, event, payload)
+      if (nextState !== undefined) {
+        draft.current = nextState as any
+        draft.path = getCurrentPath(draft) as any
+        return
+      }
+    })
   }
 
   function collectEventHandlers(
@@ -608,7 +759,7 @@ export function useMaho<
   ) {
     let path = m.current === undefined ? [] : getPath(m.current).path
 
-    const eventHandlers = path.reduce<Event<D, SC, SA>[]>((acc, state) => {
+    const eventHandlers = path.reduce<KEvent<D, SC, SA>[]>((acc, state) => {
       if (state.on !== undefined) {
         const handler = state.on[event]
         pushContents(handler, acc)
@@ -722,7 +873,7 @@ export function useMaho<
   // Submit an event to the machine
 
   const send = React.useCallback(
-    function send(event: string, payload?: any) {
+    async function send(event: string, payload?: any) {
       update((draft: Draft<IMachineState>) => {
         let path = getCurrentPath(draft)
 
@@ -738,11 +889,23 @@ export function useMaho<
 
         // Run event handlers
         for (let eventHandler of eventHandlers) {
-          // Mutates!
-          const nextState = handleEventHandler(draft, eventHandler, payload)
-          if (nextState !== undefined) {
-            draft.current = nextState as any
-            break
+          if (
+            eventHandler.wait !== undefined &&
+            eventHandler.id !== undefined
+          ) {
+            handleAsyncEventHandler(
+              eventHandler.state,
+              eventHandler.id,
+              eventHandler.wait * 2000,
+              payload
+            )
+          } else {
+            // Mutates!
+            const nextState = handleEventHandler(draft, eventHandler, payload)
+            if (nextState !== undefined) {
+              draft.current = nextState as any
+              break
+            }
           }
         }
 
@@ -752,13 +915,47 @@ export function useMaho<
         // Run onEvents based on path
         for (let state of path) {
           // Mutates!
-          if (handleAutoEventHandler(draft, state.onEvent, payload)) {
-            break
+          if (state.onEvent !== undefined) {
+            if (Array.isArray(state.onEvent)) {
+              for (let e of state.onEvent) {
+                if (e.wait !== undefined) {
+                  handleAsyncEventHandler(
+                    state.name,
+                    "onEvent",
+                    e.wait * 2000,
+                    payload
+                  )
+                } else {
+                  if (handleAutoEventHandler(draft, e, payload)) {
+                    break
+                  }
+                }
+              }
+            } else {
+              if (state.onEvent.wait !== undefined) {
+                handleAsyncEventHandler(
+                  state.name,
+                  "onEvent",
+                  state.onEvent.wait * 2000,
+                  payload
+                )
+              } else {
+                if (handleAutoEventHandler(draft, state.onEvent, payload)) {
+                  break
+                }
+              }
+            }
           }
         }
 
         // Run root-level onEvent (Mutates!)
-        handleAutoEventHandler(draft, draft.onEvent, payload)
+        if (Array.isArray(draft.onEvent)) {
+          for (let e of draft.onEvent) {
+            handleAutoEventHandler(draft, e, payload)
+          }
+        } else {
+          handleAutoEventHandler(draft, draft.onEvent, payload)
+        }
 
         // Update computed Values
         updateComputedValues(draft, options.computed)
@@ -785,6 +982,21 @@ const pushContents = <D>(source: D | D[] | undefined, target: D[]) => {
     target.push(...source)
   } else {
     target.push(source)
+  }
+}
+
+const forEachMaybeArray = <K, T extends K[] | K>(
+  source: K[] | K,
+  callback: (item: K) => any
+): T => {
+  if (Array.isArray(source)) {
+    for (let item of source) {
+      callback(item)
+    }
+    return source as T
+  } else {
+    callback(source)
+    return source as T
   }
 }
 

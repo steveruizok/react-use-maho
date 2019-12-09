@@ -12,12 +12,40 @@ const ItemCounter = ({ min = 0, max = 10 }) => {
     states: {
       inactive: {
         on: {
-          TURN_ON: {
-            to: "active"
-          }
+          TURN_ON: [
+            {
+              to: "active",
+              wait: 0.5
+            }
+          ]
         }
       },
       active: {
+        initial: "ok",
+        states: {
+          ok: {
+            initial: "red",
+            onEnter: {
+              to: "notOk"
+            },
+            states: {
+              red: {},
+              green: {}
+            },
+            on: {
+              GET_SICK: {
+                to: "notOk"
+              }
+            }
+          },
+          notOk: {
+            on: {
+              GET_WELL: {
+                to: "ok"
+              }
+            }
+          }
+        },
         on: {
           TURN_OFF: {
             to: "inactive"
