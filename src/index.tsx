@@ -1,4 +1,2 @@
-import { useMaho } from "./useMaho2";
-import { Maho } from "./Maho";
-
-export { useMaho, Maho };
+import { useMaho } from "./useMaho"
+export { useMaho }
