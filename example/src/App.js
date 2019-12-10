@@ -1,7 +1,7 @@
 // @ts-check
 import React from "react"
 import { useMaho } from "react-use-maho"
-import { Visualizer } from "./components/Visualizer/"
+import { Visualizer } from "../../docs/src/components/Visualizer"
 
 const ItemCounter = ({ min = 0, max = 10 }) => {
   const [state, send, { isIn, can }] = useMaho({

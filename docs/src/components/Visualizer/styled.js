@@ -10,6 +10,9 @@ export const MachineContainer = styled.div`
   border-radius: 8px;
   overflow: hidden;
   width: fit-content;
+  font-family: Helvetica Neue, sans-serif;
+  font-weight: 500;
+  color: #ffffff;
 `
 
 export const MachineHeader = styled.div`
@@ -24,6 +27,7 @@ export const StateContainer = styled.div`
   border-radius: 8px;
   overflow: hidden;
   width: fit-content;
+  position: relative;
 `
 
 export const StateHeader = styled.div`

@@ -1,0 +1,50 @@
+# Visualizer
+
+<MahoVisualizer />
+
+```js
+function Counter() {
+  React.useMaho({
+    data: {
+      count: 0,
+      min: 0,
+      max: 10
+    },
+    initial: "inactive",
+    states: {
+      inactive: {
+        on: {
+          TURN_ON: {
+            to: "active"
+          }
+        }
+      },
+      active: {
+        on: {
+          TURN_OFF: {
+            to: "inactive"
+          },
+          ADD: {
+            do: "increment",
+            if: "belowMax"
+          },
+          SUBTRACT: {
+            do: "decrement",
+            if: "aboveMin"
+          }
+        }
+      }
+    },
+    actions: {
+      increment: data => data.count++,
+      decrement: data => data.count--
+    },
+    conditions: {
+      belowMax: data => data.count < data.max,
+      aboveMin: data => data.count > data.min
+    }
+  })
+
+  return <div>...</div>
+}
+```

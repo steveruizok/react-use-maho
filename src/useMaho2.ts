@@ -389,7 +389,8 @@ export function useMaho<
   type DMachineState = Draft<IMachineState>
   type IEventsInPath = [string, IEvent | IEvent[]][]
 
-  const [state, update] = useImmer<IMachineState>(init(options))
+  const memoizedOptions: IMachineState = React.useMemo(() => init(options), [])
+  const [state, update] = useImmer<IMachineState>(memoizedOptions)
 
   // Helpers
   function getPath(
