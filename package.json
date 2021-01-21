@@ -31,7 +31,7 @@
     "@vx/shape": "^0.0.192",
     "d3-hierarchy": "^1.1.9",
     "emotion": "^10.0.23",
-    "immer": "^5.0.0",
+    "immer": "^8.0.1",
     "lodash-es": "^4.17.15",
     "use-immer": "^0.3.5"
   },
