@@ -32,7 +32,7 @@
     "d3-hierarchy": "^1.1.9",
     "emotion": "^10.0.23",
     "immer": "^5.0.0",
-    "lodash-es": "^4.17.15",
+    "lodash-es": "^4.17.21",
     "use-immer": "^0.3.5"
   },
   "peerDependencies": {
